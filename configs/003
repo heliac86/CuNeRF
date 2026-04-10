@@ -22,7 +22,7 @@ n_imps    : 64
 mtype     : NeRFMLP
 
 # test
-zpos      : [0]
+zpos      : [-3.14, 3.14]
 scales    : [1]
 angles    : [180]
 asteps    : 155
