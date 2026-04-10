@@ -12,7 +12,7 @@ N_eval   : 50
 lr       : 0.002
 lr_final : 0.00002
 workers  : 4
-scale    : 1 # train/eval 기본값
+scale    : 4 # train/eval 기본값
 
 # modeling
 stype     : cube
