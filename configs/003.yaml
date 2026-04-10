@@ -92,7 +92,7 @@ dataloader :
   mode : $mode
   train :
     batch_size : 1
-    shuffle : True
+    shuffle : False
   
   eval:
     batch_size : 1
