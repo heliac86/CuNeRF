@@ -22,7 +22,7 @@ def argParse():
     # basic settings
     parser.add_argument('expname', type=str)
     parser.add_argument('--cfg', default='configs/example.yaml')
-    parser.add_argument('--scale', type=int, default=2)
+    parser.add_argument('--scale', type=int, default=None)
     parser.add_argument('--mode', choices=['train', 'eval', 'test'], default='train')
     parser.add_argument('--file', type=str)
     parser.add_argument('--max_iter', type=int)

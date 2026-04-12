@@ -1,18 +1,25 @@
-import SimpleITK as sitk
 import torch
-import numpy as np
+torch.set_default_tensor_type('torch.cuda.FloatTensor')
+import sys
 
-file = "/data/BraTS20_Degraded_4x_5/BraTS20_Training_003/BraTS20_Training_003_t1ce.nii"
+sys.argv = ['run.py', 'test_0411',
+    '--cfg', 'configs/003.yaml',
+    '--mode', 'train',
+    '--file', '/data/BraTS20_Degraded_4x_5/BraTS20_Training_003/BraTS20_Training_003_t1ce.nii',
+    '--modality', 't1gd',
+    '--resume_type', 'psnr']
 
-data = sitk.GetArrayFromImage(sitk.ReadImage(file)).astype(float)
-data = torch.from_numpy(data).float()
+from run import argParse
+from src import Cfg
+args = argParse()
+cfg = Cfg(args)
 
-print(f"Shape: {data.shape}")          # 기대값: (39, 240, 240)
-print(f"Min: {data.min():.4f}")
-print(f"Max: {data.max():.4f}")
-print(f"NaN count: {torch.isnan(data).sum()}")
-print(f"Zero ratio: {(data == 0).float().mean():.4f}")
+print(f"train data shape: {cfg.trainset.data.shape}")
+print(f"train data min={cfg.trainset.data.min():.6f}, max={cfg.trainset.data.max():.6f}")
+print(f"train data 0인 픽셀 비율: {(cfg.trainset.data==0).float().mean():.4f}")
 
-# normalization 후 확인
-normed = (data - data.min()) / (data.max() - data.min())
-print(f"Normalized min: {normed.min():.4f}, max: {normed.max():.4f}")
+# 슬라이스 몇 개의 실제 값 분포 확인
+for z in [0, 10, 19, 29, 38]:
+    sl = cfg.trainset.data[z]
+    nonzero = sl[sl > 0]
+    print(f"  z={z:2d}: nonzero pixels={len(nonzero):5d}, mean={nonzero.mean():.4f} (전체 mean={sl.mean():.4f})")

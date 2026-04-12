@@ -263,6 +263,10 @@ class Cfg:
     def evaluation(self, pds):
         gts = self.evalset.getLabel()
 
+        # 임시 진단 추가
+        print(f"[DEBUG] pds min={pds.min():.6f}, max={pds.max():.6f}, mean={pds.mean():.6f}")
+        print(f"[DEBUG] gts min={gts.min():.6f}, max={gts.max():.6f}, mean={gts.mean():.6f}")
+
         with torch.no_grad():
             scores = self.metrics.evaluation(pds, gts)
             scores_txt = reduce(lambda x1, x2 : x1 + ' | ' + x2, [f'{k.upper()} : {v}' for k, v in scores.items()])
