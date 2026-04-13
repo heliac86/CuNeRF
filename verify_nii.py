@@ -4,7 +4,7 @@ verify_nii.py — CuNeRF 출력 nii.gz 검증 스크립트
 사용법:
   python verify_nii.py \
     --gt   /data/BraTS20_Training_003/BraTS20_Training_003_t1ce.nii.gz \
-    --pred /dshome/.../test_0413_2/BraTS20_Training_003/BraTS20_Training_003_t1ce.nii.gz \
+    --pred /dshome/.../BraTS20_Training_003_t1ce.nii.gz \
     --name CuNeRF \
     [--other /path/to/other_model.nii.gz --other_name ModelB]
 """
@@ -16,6 +16,7 @@ import nibabel as nib
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from scipy.ndimage import zoom
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from skimage.metrics import structural_similarity as ssim
 
@@ -44,6 +45,15 @@ def safe_psnr(gt, pred, data_range=1.0):
 
 def safe_ssim(gt, pred, data_range=1.0):
     return ssim(gt, pred, data_range=data_range)
+
+
+def match_shape(arr, target_shape):
+    """배열을 target_shape으로 zoom 리샘플링. shape이 이미 같으면 그대로 반환."""
+    if arr.shape == target_shape:
+        return arr
+    factors = tuple(t / s for t, s in zip(target_shape, arr.shape))
+    print(f"  [shape 리샘플링] {arr.shape} → {target_shape}  (zoom factors: {[f'{f:.4f}' for f in factors]})")
+    return zoom(arr, factors, order=1).astype(np.float32)
 
 
 # ─────────────────────────────────────────────
@@ -82,6 +92,7 @@ def check_metadata(gt_img, pred_img, pred_name):
         print(f"\n    shape 일치 ✓  {gt_shape}")
     else:
         print(f"\n    ⚠ shape 불일치! GT={gt_shape}, PRED={pred_shape}")
+        print(f"    → 지표 계산 시 자동으로 GT shape에 맞게 리샘플링합니다.")
 
 
 # ─────────────────────────────────────────────
@@ -107,6 +118,22 @@ def check_orientation(gt_path, pred_path, pred_name):
 
 
 # ─────────────────────────────────────────────
+# 2-B. --other 파일 메타데이터 요약
+# ─────────────────────────────────────────────
+def check_other_metadata(gt_arr, others, other_names):
+    if not others:
+        return
+    print("\n" + "=" * 60)
+    print("  2-B. 비교 모델 메타데이터 요약")
+    print("=" * 60)
+    gt_shape = gt_arr.shape
+    for arr, name in zip(others, other_names):
+        match = "✓" if arr.shape == gt_shape else f"⚠ GT={gt_shape}"
+        print(f"  [{name}]  shape={arr.shape}  {match}")
+        print(f"    intensity: min={arr.min():.4f}  max={arr.max():.4f}  mean={arr.mean():.6f}")
+
+
+# ─────────────────────────────────────────────
 # 3. 뇌 알맹이 무게중심
 # ─────────────────────────────────────────────
 def check_brain_center(gt_arr, pred_arr, pred_name, threshold=0.05):
@@ -122,7 +149,7 @@ def check_brain_center(gt_arr, pred_arr, pred_name, threshold=0.05):
         return np.array([z.mean(), y.mean(), x.mean()]), mask.mean()
 
     gt_n   = normalize_arr(gt_arr)
-    pred_n = normalize_arr(pred_arr)
+    pred_n = normalize_arr(match_shape(pred_arr, gt_arr.shape))
 
     gt_c,   gt_ratio   = centroid(gt_n,   threshold)
     pred_c, pred_ratio = centroid(pred_n, threshold)
@@ -150,19 +177,20 @@ def compute_metrics(gt_arr, pred_arr, pred_name):
     print(f"  4. 화질 지표 — {pred_name} vs GT")
     print("=" * 60)
 
+    # shape 불일치 시 리샘플링
+    pred_arr_r = match_shape(pred_arr, gt_arr.shape)
+
     gt_n   = normalize_arr(gt_arr)
-    pred_n = normalize_arr(pred_arr)
+    pred_n = normalize_arr(pred_arr_r)
 
     # 전체 볼륨 PSNR
     psnr_vol = safe_psnr(gt_n, pred_n)
 
     # 슬라이스별 SSIM 평균
-    ssim_vals = []
-    for i in range(len(gt_n)):
-        ssim_vals.append(safe_ssim(gt_n[i], pred_n[i]))
+    ssim_vals = [safe_ssim(gt_n[i], pred_n[i]) for i in range(len(gt_n))]
     ssim_mean = np.nanmean(ssim_vals)
 
-    print(f"  전체 볼륨 PSNR  = {psnr_vol:.4f} dB")
+    print(f"  전체 볼륨 PSNR      = {psnr_vol:.4f} dB")
     print(f"  슬라이스별 SSIM 평균 = {ssim_mean:.4f}")
 
     # 슬라이스별 PSNR
@@ -268,10 +296,10 @@ def visualize(gt_n, preds_n, names, slice_psnrs_list, out_dir):
     plt.close()
 
     print(f"\n  시각화 저장 완료 → {out_dir}/")
-    print(f"    slice_010.png ~ slice_144.png  : 고정 슬라이스 비교")
-    print(f"    psnr_curve.png                 : 슬라이스별 PSNR")
-    print(f"    nonzero_curve.png              : 슬라이스별 비-zero 비율")
-    print(f"    view_axial/coronal/sagittal.png: 3축 단면")
+    print(f"    slice_010/040/077/114/144.png   : 고정 슬라이스 비교")
+    print(f"    psnr_curve.png                  : 슬라이스별 PSNR")
+    print(f"    nonzero_curve.png               : 슬라이스별 비-zero 비율")
+    print(f"    view_axial/coronal/sagittal.png : 3축 단면")
 
 
 # ─────────────────────────────────────────────
@@ -300,10 +328,17 @@ def main():
         other_names = args.other_name if args.other_name \
                       else [f"Model{i+1}" for i in range(len(others))]
 
+    # 1~2: 메타데이터 / 축 방향 (--pred 기준)
     check_metadata(gt_img, pred_img, args.name)
     check_orientation(args.gt, args.pred, args.name)
+
+    # 2-B: --other 파일 shape 요약
+    check_other_metadata(gt_arr, others, other_names)
+
+    # 3: 무게중심 (--pred 기준)
     gt_n, pred_n = check_brain_center(gt_arr, pred_arr, args.name)
 
+    # 4: 지표 계산 (shape 불일치 시 자동 리샘플링)
     slice_psnrs, gt_n, pred_n = compute_metrics(gt_arr, pred_arr, args.name)
     psnrs_list = [slice_psnrs]
     names_list = [args.name]
@@ -313,8 +348,9 @@ def main():
         sp, _, p_n = compute_metrics(gt_arr, arr, name)
         psnrs_list.append(sp)
         names_list.append(name)
-        preds_n.append(normalize_arr(arr))
+        preds_n.append(normalize_arr(match_shape(arr, gt_arr.shape)))
 
+    # 5: 시각화
     visualize(gt_n, preds_n, names_list, psnrs_list, args.out_dir)
     print("\n검증 완료.")
 
