@@ -31,7 +31,7 @@ if __name__ == "__main__":
         bcfg = yaml.safe_load(f)
     raw = sitk.GetArrayFromImage(sitk.ReadImage(args.file))
     n_in = raw.shape[0]  # 39
-    radius = bcfg["dataset"]["train"]["radius"]
+    radius = int(bcfg.get("radius", 1))
     pad = int(max(radius, 1))
     denom = n_in + 2 * pad - 1
     z_min = 2 * np.pi * pad / denom - np.pi
