@@ -56,7 +56,7 @@ if __name__ == "__main__":
     W = cfg.evalset.W            # 240
     H = cfg.evalset.H            # 240
     S = args.bs                  # 4096
-    pds = np.zeros((N, H, W), dtype=np.float32)
+    pds = np.zeros((N, H * W), dtype=np.float32)
 
     with torch.no_grad():
         for idx, batch in enumerate(tqdm(cfg.evalloader, desc="Rendering")):
