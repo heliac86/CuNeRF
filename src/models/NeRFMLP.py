@@ -10,8 +10,6 @@ class NeRFMLP(base.baseModel):
             [nn.Linear(self.in_ch, self.netW), *[nn.Linear(self.netW + self.in_ch, self.netW) if i in self.skips else nn.Linear(self.netW, self.netW) for i in range(self.netD - 1)]]
         )
         self.out_MLP = nn.Linear(self.netW, self.out_ch)
-        # initialize density channel bias to positive to prevent dead ReLU on sparse data (e.g. BraTS)
-        torch.nn.init.constant_(self.out_MLP.bias[-1], 1.0)
 
     def forward(self, x):
         x = self.embed(x)
