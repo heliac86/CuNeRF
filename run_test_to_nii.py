@@ -24,34 +24,21 @@ def argParse():
 
 if __name__ == "__main__":
     torch.set_default_tensor_type("torch.cuda.FloatTensor")
-
     args = argParse()
 
-    # z 범위를 dataset.py z_trans 공식으로 역산
-    with open(args.cfg) as f:
-        bcfg = yaml.safe_load(f)
-    raw    = sitk.GetArrayFromImage(sitk.ReadImage(args.file))
-    n_in   = raw.shape[0]
-    radius = int(bcfg.get("radius", 1))
-    pad    = int(max(radius, 1))
-    denom  = n_in + 2 * pad - 1
-    z_min  = 2 * np.pi * pad / denom - np.pi
-    z_max  = 2 * np.pi * (n_in - 1 + pad) / denom - np.pi
-    print(f"입력 슬라이스: {n_in}장  |  z 범위: [{z_min:.6f}, {z_max:.6f}]")
-
-    # Cfg가 요구하는 args 속성 채우기
-    args.mode       = "test"
-    args.resume     = True          # ← 반드시 True여야 Resume()이 호출됨
-    args.N_eval     = None
+    # Cfg가 요구하는 args 속성 채우기 — eval 모드 사용
+    args.mode       = "eval"
+    args.resume     = True
+    args.N_eval     = args.n_out   # 155
     args.save_map   = False
     args.max_iter   = None
     args.eval_iter  = None
-    args.zpos       = [z_min, z_max]
-    args.scales     = [1.0]
-    args.angles     = [0]
-    args.axis       = [0, 0, 1]
-    args.asteps     = args.n_out
-    args.cam_scale  = 1.0
+    args.zpos       = None
+    args.scales     = None
+    args.angles     = None
+    args.axis       = None
+    args.asteps     = None
+    args.cam_scale  = None
     args.is_details = False
     args.is_gif     = False
     args.is_video   = False
@@ -60,29 +47,28 @@ if __name__ == "__main__":
     from src import Cfg, utils
     cfg = Cfg(args)
 
-    W, H, S = cfg.testset.W, cfg.testset.H, args.bs
-    pds = np.zeros((args.n_out, H, W), dtype=np.float32)
+    # evalset.vals: N_eval=155개의 균등 샘플 z 인덱스 (0~38 범위에서 155개)
+    # → 39슬라이스를 155개 위치로 보간하는 효과
+    print(f"evalset.vals (처음 5개): {cfg.evalset.vals[:5]}")
+    print(f"evalset.vals (마지막 5개): {cfg.evalset.vals[-5:]}")
+
+    N = cfg.evalset.__len__()    # 155
+    W = cfg.evalset.W            # 240
+    H = cfg.evalset.H            # 240
+    S = args.bs                  # 4096
+    pds = np.zeros((N, H, W), dtype=np.float32)
 
     with torch.no_grad():
-        for idx, batch in enumerate(tqdm(cfg.testloader, desc="Rendering")):
-            coords, depths, R, zpos, angle, scale = batch
-            coords, R = torch.squeeze(coords), torch.squeeze(R)
-            flags = utils.judge_range(coords, R)
-            slice_pred = np.zeros(H * W, dtype=np.float32)
-            # run.py 원본 test()와 동일한 루프 구조
-            for cidx in range(H * W // S + 1):
-                select_inds  = list(range(S * cidx, min(S * (cidx + 1), len(coords))))
-                if len(select_inds) == 0:
-                    break
-                select_flags = flags[select_inds]
-                valid_inds   = torch.tensor(select_inds).long()[select_flags]
-                if len(valid_inds) > 0:
-                    rgb, _ = cfg.Render(coords[valid_inds], depths,
-                                        is_train=False, R=R)
-                    slice_pred[valid_inds.cpu().numpy()] = rgb.cpu().numpy()
-            pds[idx] = slice_pred.reshape(H, W)
+        for idx, batch in enumerate(tqdm(cfg.evalloader, desc="Rendering")):
+            coords, depths = batch
+            coords = coords.squeeze(0)
+            for cidx in range(math.ceil(W * H / S)):
+                select_coords = coords[list(range(S * cidx, min(S * (cidx + 1), len(coords))))]
+                rgb, _ = cfg.Render(select_coords, depths, is_train=False)
+                pds[idx, S * cidx : S * (cidx + 1)] = rgb.cpu().numpy()
+        pds = pds.reshape(N, H, W)
 
-    # float32 nii.gz로 저장 + 원본 BraTS 공간 정보 복사
+    # float32 nii.gz 저장 + 원본 BraTS 공간 정보 복사
     ref     = sitk.ReadImage(args.ref_file)
     out_itk = sitk.GetImageFromArray(pds)
     out_itk.CopyInformation(ref)
