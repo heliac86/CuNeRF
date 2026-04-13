@@ -5,8 +5,8 @@ import math
 
 def cube_rendering(raw, pts, cnts, dx, dy, dz):
     norm = torch.sqrt(torch.square(dx) + torch.square(dy) + torch.square(dz))
-    raw2beta = lambda raw, dists, rs, act_fn=F.relu : -act_fn(raw) * dists * torch.square(rs) * 4 * math.pi
-    raw2alpha = lambda raw, dists, rs, act_fn=F.relu : (1.-torch.exp(-act_fn(raw) * dists)) * torch.square(rs) * 4 * math.pi 
+    raw2beta = lambda raw, dists, rs, act_fn=F.softplus : -act_fn(raw) * dists * torch.square(rs) * 4 * math.pi
+    raw2alpha = lambda raw, dists, rs, act_fn=F.softplus : (1.-torch.exp(-act_fn(raw) * dists)) * torch.square(rs) * 4 * math.pi 
     rs = torch.norm(pts - cnts[:, None], dim=-1)
     sorted_rs, indices_rs = torch.sort(rs)
     dists = sorted_rs[...,1:] - sorted_rs[...,:-1]
