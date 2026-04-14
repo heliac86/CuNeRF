@@ -22,7 +22,7 @@ N_OUT=155
 if [ "$MODALITY" = "t1ce" ]; then
     MODALITY_ARG="t1gd"
 elif [ "$MODALITY" = "flair" ]; then
-    MODALITY_ARG="flair"
+    MODALITY_ARG="FLAIR"
 else
     echo "오류: MODALITY는 't1ce' 또는 'flair' 이어야 합니다."
     exit 1
