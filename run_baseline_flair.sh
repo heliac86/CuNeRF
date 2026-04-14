@@ -50,12 +50,16 @@ for PID in "${PATIENT_IDS[@]}"; do
     INPUT_FILE="${DEGRADED_BASE}/${PID}/${NII_FILENAME}"
     REF_FILE="${REF_BASE}/${PID}/${NII_FILENAME}"
     OUT_FILE="${SAVE_BASE}/${EXP_NAME}/${PID}/${NII_FILENAME}.gz"
+    
+    # fname = NII_FILENAME에서 .nii 제거 = "{PID}_{MODALITY}"
+    # CuNeRF 체크포인트 경로: save/original/{PID}_{MODALITY}/current.pkl
+    CKPT_EXP_NAME="${EXP_NAME}/${PID}_${MODALITY}"  # run.py expname 인자
 
     echo ""
-    echo "[$(date '+%H:%M:%S')] 시작: ${EXP_NAME}"
+    echo "[$(date '+%H:%M:%S')] 시작: ${PID} / ${MODALITY}"   # ← PID로 수정
 
     # --- 학습 ---
-    python run.py "$EXP_NAME" \
+    python run.py "$CKPT_EXP_NAME" \       # ← 환자+모달리티별 고유 expname
         --cfg "$CFG" \
         --file "$INPUT_FILE" \
         --scale 1 \
@@ -68,13 +72,13 @@ for PID in "${PATIENT_IDS[@]}"; do
         --resume
 
     if [ $? -ne 0 ]; then
-        echo "[$(date '+%H:%M:%S')] 학습 실패: ${EXP_NAME}" >&2
-        FAIL_LIST+=("TRAIN_FAIL: ${EXP_NAME}")
+        echo "[$(date '+%H:%M:%S')] 학습 실패: ${PID}" >&2
+        FAIL_LIST+=("TRAIN_FAIL: ${PID}_${MODALITY}")   # ← PID로 수정
         continue
     fi
 
     # --- 추론 ---
-    python run_test_to_nii.py "$EXP_NAME" \
+    python run_test_to_nii.py "$CKPT_EXP_NAME" \       # ← 동일하게
         --cfg "$CFG" \
         --file "$INPUT_FILE" \
         --ref_file "$REF_FILE" \
@@ -84,12 +88,12 @@ for PID in "${PATIENT_IDS[@]}"; do
         --resume_type current
 
     if [ $? -ne 0 ]; then
-        echo "[$(date '+%H:%M:%S')] 추론 실패: ${EXP_NAME}" >&2
-        FAIL_LIST+=("INFER_FAIL: ${EXP_NAME}")
+        echo "[$(date '+%H:%M:%S')] 추론 실패: ${PID}" >&2
+        FAIL_LIST+=("INFER_FAIL: ${PID}_${MODALITY}")   # ← PID로 수정
         continue
     fi
 
-    echo "[$(date '+%H:%M:%S')] 완료: ${EXP_NAME}"
+    echo "[$(date '+%H:%M:%S')] 완료: ${PID} / ${MODALITY}"   # ← PID로 수정
 
 done
 
